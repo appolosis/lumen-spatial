@@ -1,7 +1,7 @@
 // Built-in spatial apps. Each factory returns { w, h, draw(ctx, ui, panel), tick?, onOpen?, onClose?, dist? }.
 import * as THREE from 'three';
-import { drawGlass, text, rr, PX_PER_M } from './ui.js?v=13';
-import { ENVIRONMENTS } from './env.js?v=13';
+import { drawGlass, text, rr, PX_PER_M } from './ui.js?v=14';
+import { ENVIRONMENTS } from './env.js?v=14';
 
 const MUTED = 'rgba(255,255,255,0.62)';
 const pad2 = n => String(n).padStart(2, '0');

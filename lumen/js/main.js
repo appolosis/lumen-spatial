@@ -1,12 +1,12 @@
 // Lumen Spatial: phone-in-headset spatial computer.
 import * as THREE from 'three';
-import { Panel, Surface, PX_PER_M, text, rr } from './ui.js?v=13';
-import { createApps } from './apps.js?v=13';
-import { createSky } from './env.js?v=13';
-import { createHands } from './hands.js?v=13';
-import { createJellyfin } from './jellyfin.js?v=13';
-import { LiveVideo, updateAllVideos, createProbe, setVideoMode, videoMode } from './livevideo.js?v=13';
-import { createPhone } from './phone.js?v=13';
+import { Panel, Surface, PX_PER_M, text, rr } from './ui.js?v=14';
+import { createApps } from './apps.js?v=14';
+import { createSky } from './env.js?v=14';
+import { createHands } from './hands.js?v=14';
+import { createJellyfin } from './jellyfin.js?v=14';
+import { LiveVideo, updateAllVideos, createProbe, setVideoMode, videoMode } from './livevideo.js?v=14';
+import { createPhone } from './phone.js?v=14';
 
 THREE.ColorManagement.enabled = false;
 const $ = s => document.querySelector(s);
@@ -1048,7 +1048,7 @@ if (!window.isSecureContext) setStatus('This page is not on HTTPS, so the camera
 resize();
 
 if ('serviceWorker' in navigator && window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-  navigator.serviceWorker.register('sw.js?v=13').catch(() => {});
+  navigator.serviceWorker.register('sw.js?v=14').catch(() => {});
 }
 
 // debug hook for testing

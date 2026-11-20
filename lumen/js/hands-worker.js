@@ -1,7 +1,7 @@
 // Classic worker: runs MediaPipe hand landmarks off the render thread.
 self.exports = {};
 self.module = { exports: self.exports };
-importScripts('../vendor/mediapipe/vision_bundle.js?v=13');
+importScripts('../vendor/mediapipe/vision_bundle.js?v=14');
 const { FilesetResolver, HandLandmarker } = self.exports;
 
 let landmarker = null;

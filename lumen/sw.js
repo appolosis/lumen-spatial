@@ -1,6 +1,6 @@
 // Offline cache for the app shell. Bump VERSION when files change.
-const VERSION = 'lumen-v13';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'js/main.js?v=13', 'js/ui.js?v=13', 'js/apps.js?v=13', 'js/env.js?v=13', 'js/hands.js?v=13', 'js/hands-worker.js?v=13', 'js/jellyfin.js?v=13', 'js/livevideo.js?v=13', 'js/phone.js?v=13',
+const VERSION = 'lumen-v14';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'js/main.js?v=14', 'js/ui.js?v=14', 'js/apps.js?v=14', 'js/env.js?v=14', 'js/hands.js?v=14', 'js/hands-worker.js?v=14', 'js/jellyfin.js?v=14', 'js/livevideo.js?v=14', 'js/phone.js?v=14',
   'vendor/three.module.min.js', 'vendor/three.core.min.js', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
