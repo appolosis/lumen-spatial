@@ -19,3 +19,6 @@ web-assets/
 *.log
 .DS_Store
 Thumbs.db
+
+# Private project notes (server, phone, signing)
+CLAUDE.local.md
