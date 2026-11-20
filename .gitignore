@@ -1,0 +1,21 @@
+# Private: server details, local machine paths, signing keys
+lumen/deploy.sh
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
+# Build output and binaries (published separately)
+build/
+.gradle/
+web-assets/
+*.apk
+*.aab
+
+# Editors / tools
+.claude/
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db

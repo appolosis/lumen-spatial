@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Lumen Spatial</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root { --fg:#f4f4f7; --muted:#a3a3b2; --glass:rgba(255,255,255,.08); --line:rgba(255,255,255,.14); --accent:#7aa7ff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
+  #gl { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #divider { position:fixed; top:0; bottom:0; left:50%; width:2px; margin-left:-1px; background:rgba(255,255,255,.25); display:none; pointer-events:none; }
+  body.stereo #divider { display:block; }
+  #start { position:fixed; inset:0; overflow:auto; touch-action:pan-y; padding:24px 16px 40px;
+    background: radial-gradient(1200px 600px at 20% -10%, #2a3a6a 0%, transparent 60%), radial-gradient(900px 500px at 110% 110%, #4a2a5e 0%, transparent 60%), #07070b; }
+  body.running #start { display:none; }
+  .wrap { max-width:720px; margin:0 auto; }
+  .logo { display:flex; align-items:center; gap:14px; margin:8px 0 6px; }
+  .orb { width:52px; height:52px; border-radius:50%; background: radial-gradient(circle at 35% 30%, #fff 0%, #b9d0ff 18%, #6c8cff 45%, #6b3fd0 80%); box-shadow:0 0 40px rgba(120,150,255,.55); }
+  h1 { font-size:30px; margin:0; letter-spacing:-.5px; font-weight:650; }
+  .sub { color:var(--muted); margin:0 0 22px; line-height:1.45; }
+  .card { background:var(--glass); border:1px solid var(--line); border-radius:22px; padding:18px; margin-bottom:14px; backdrop-filter: blur(20px); }
+  .card h2 { font-size:16px; margin:0 0 10px; font-weight:600; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; }
+  button, .filebtn { appearance:none; border:1px solid var(--line); background:rgba(255,255,255,.12); color:var(--fg); font:inherit; font-weight:600;
+    padding:14px 20px; border-radius:999px; cursor:pointer; min-height:48px; display:inline-flex; align-items:center; gap:8px; }
+  button.primary { background:linear-gradient(180deg,#8fb2ff,#5f7dff); border-color:transparent; color:#081028; }
+  button:active, .filebtn:active { transform:scale(.97); }
+  a.filebtn { text-decoration:none; }
+  input[type=file] { display:none; }
+  .fields { display:grid; gap:10px; }
+  .fields input { width:100%; font:inherit; font-size:16px; color:var(--fg); background:rgba(0,0,0,.35); border:1px solid var(--line); border-radius:14px; padding:13px 14px; min-height:48px; }
+  .fields input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  #start input { -webkit-user-select:text; user-select:text; }
+  ol { margin:0; padding-left:20px; color:var(--muted); line-height:1.6; }
+  ol b { color:var(--fg); font-weight:600; }
+  #status { color:var(--muted); font-size:14px; margin-top:10px; min-height:1.2em; }
+  .warn { color:#ffcf7a; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:rgba(20,20,28,.9); border:1px solid var(--line); padding:10px 16px; border-radius:999px; font-size:14px; display:none; z-index:5; }
+  #exitbtn { position:fixed; top:10px; right:10px; z-index:4; display:none; padding:8px 14px; min-height:0; font-size:13px; background:rgba(0,0,0,.45); }
+  body.running.mono #exitbtn { display:inline-flex; }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="divider"></div>
+<button id="exitbtn">Exit</button>
+<div id="toast"></div>
+
+<div id="start">
+  <div class="wrap">
+    <div class="logo"><div class="orb"></div><h1>Lumen Spatial</h1></div>
+    <p class="sub">Turns your phone and a VR headset shell into a spatial computer: camera passthrough, floating windows that stay put in your room, gaze controls, and immersive environments.</p>
+
+    <div class="card">
+      <h2>Start</h2>
+      <div class="row">
+        <button class="primary" id="enterHeadset">Enter headset mode</button>
+        <button id="enterPreview">Preview without headset</button>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Jellyfin</h2>
+      <div id="jfSignedIn" style="display:none">
+        <p class="sub" style="margin:0 0 12px" id="jfWho"></p>
+        <div class="row"><button id="jfLogout">Sign out</button></div>
+      </div>
+      <form id="jfForm" autocomplete="on">
+        <p class="sub" style="margin:0 0 12px">Sign in once here with your Jellyfin account, then open the Jellyfin app inside the headset. The server address is already filled in. Your password is only sent to your server and is not saved.</p>
+        <div class="fields">
+          <input id="jfUrl" type="url" inputmode="url" placeholder="https://jellyfin.example.com" autocomplete="url" required>
+          <input id="jfUser" type="text" placeholder="Username" autocomplete="username" required>
+          <input id="jfPass" type="password" placeholder="Password" autocomplete="current-password">
+        </div>
+        <div class="row" style="margin-top:12px"><button class="primary" type="submit" id="jfGo">Sign in</button></div>
+      </form>
+      <div id="jfStatus" style="color:var(--muted);font-size:14px;margin-top:10px;min-height:1.2em"></div>
+    </div>
+
+    <div class="card" id="apkCard" hidden>
+      <h2>Android app (beta)</h2>
+      <p class="sub" style="margin:0 0 12px">The Android app adds smoother head tracking and lets you run your phone's own apps and games inside Lumen (needs the free Shizuku app). Android 8 or newer.</p>
+      <div class="row"><a class="filebtn" id="apkLink" href="#">Download for Android</a></div>
+      <p class="sub" style="margin:12px 0 0;font-size:13px">To install, open the downloaded file and allow your browser to install apps when Android asks. Check the file is genuine: its SHA-256 is <code id="apkHash" style="word-break:break-all"></code></p>
+    </div>
+
+    <div class="card">
+      <h2>Video file (optional)</h2>
+      <p class="sub" style="margin:0 0 12px">Pick a video from your phone now. It plays on a giant screen in the Cinema app.</p>
+      <div class="row">
+        <label class="filebtn" for="videoFile">Choose video…</label>
+        <input type="file" id="videoFile" accept="video/*">
+        <span id="videoName" style="color:var(--muted);align-self:center"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>How to use it</h2>
+      <ol>
+        <li>Put the phone in any Cardboard-style headset that has a <b>camera cut-out</b> on the front, or the passthrough will just be black.</li>
+        <li><b>Look</b> at something to highlight it. <b>Hold your gaze</b> on it, or <b>tap the screen</b> (headset button), to select it.</li>
+        <li>Or raise a hand in front of the phone's camera: the cursor follows your <b>hand</b> instead of your gaze, and a <b>pinch</b> (thumb to index finger) clicks. Pinch and hold a window's bar to carry it. Drop your hand to go back to gaze.</li>
+        <li><b>Look down</b> to find the glowing Home orb. Select it to open your apps.</li>
+        <li><b>Double-tap</b> to recenter. To move a window, select the bar under it, look somewhere else, then hold still to drop it.</li>
+        <li>Settings has controls for IPD, lens distortion, field of view and passthrough zoom so you can match your headset.</li>
+        <li>Press the phone's <b>Back</b> gesture to leave headset mode.</li>
+      </ol>
+    </div>
+    <p class="sub" style="font-size:13px">Tip: in Chrome, use ⋮ › <b>Add to Home screen</b> to install Lumen as a fullscreen app.</p>
+  </div>
+</div>
+
+<script type="module" src="js/main.js?v=13"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+plugins { id 'com.android.application' version '9.4.1' }
+
+// The web app in ../lumen is copied into the APK on every build, so the APK always matches it.
+def webSrc = file('../lumen')
+def webOut = layout.buildDirectory.dir('web-assets')
+// Only the files the web app needs: never scripts or notes that sit in the folder (deploy.sh has
+// server details in it), since anyone can unzip a published APK.
+def copyWeb = tasks.register('copyWeb', Sync) {
+    from(webSrc) {
+        include 'index.html', 'manifest.webmanifest', 'js/**', 'icons/**', 'vendor/**'
+    }
+    into(webOut.map { it.dir('www') })
+}
+
+// Release signing key lives outside the project (never in the web folder or the APK):
+// ~/.lumen-signing/keystore.properties + lumen-release.jks. Losing it means future versions
+// can't install over the old one, so keep a backup.
+def signingProps = new Properties()
+def signingFile = new File(System.getProperty('user.home'), '.lumen-signing/keystore.properties')
+if (signingFile.exists()) signingFile.withInputStream { signingProps.load(it) }
+
+android {
+    namespace 'com.lumen.spatial'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.lumen.spatial'
+        minSdk 26
+        targetSdk 36
+        versionCode 4
+        versionName '1.2.1'
+    }
+    signingConfigs {
+        release {
+            if (signingFile.exists()) {
+                storeFile file(signingProps['storeFile'])
+                storePassword signingProps['storePassword']
+                keyAlias signingProps['keyAlias']
+                keyPassword signingProps['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            // Not debuggable: no WebView remote debugging and no debug-only hooks.
+            debuggable false
+            minifyEnabled false   // Relay and Shizuku are called by name/reflection; keep code as is
+            signingConfig signingConfigs.release
+        }
+    }
+    sourceSets { main { assets.srcDirs += [webOut.get().asFile] } }
+    androidResources { noCompress += ['wasm', 'task', 'js'] }
+}
+
+tasks.named('preBuild') { dependsOn copyWeb }
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    // Shizuku: shell-level access (no root) to run apps on a hidden display. scrcpy-server (Apache-2.0)
+    // ships in src/main/assets/scrcpy-server and must match PhoneStream.SCRCPY_VERSION.
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+}

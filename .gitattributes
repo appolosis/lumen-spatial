@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jar binary
+*.wasm binary
+*.task binary
+lumen-android/src/main/assets/scrcpy-server binary
