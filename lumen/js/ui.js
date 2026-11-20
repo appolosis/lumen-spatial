@@ -20,9 +20,20 @@ export function rr(ctx, x, y, w, h, r) {
   ctx.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2));
 }
 
+// Frosted glass: windows show a blurred copy of what's behind them (main.js renders and
+// blurs the backdrop each frame). The canvas tint is lighter when frost is on, so the blur
+// shows through; with frost off the glass stays darker for readability.
+export const frost = {
+  enabled: { value: 0 },
+  backdrop: { value: null },
+  viewRect: { value: new THREE.Vector4(0, 0, 1, 1) },   // current view, in framebuffer pixels
+};
+let glassTint = 0.70;
+export function setGlassTint(a) { glassTint = a; }
+
 export function drawGlass(ctx, w, h, r = 40) {
   rr(ctx, 1, 1, w - 2, h - 2, r);
-  ctx.fillStyle = 'rgba(30, 32, 42, 0.70)';
+  ctx.fillStyle = `rgba(30, 32, 42, ${glassTint})`;
   ctx.fill();
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, 'rgba(255,255,255,0.13)');
@@ -109,7 +120,7 @@ export class UI {
 
 // One canvas texture on one plane. Hit-tested by gaze ray UVs.
 export class Surface {
-  constructor(w, h, drawFn, owner) {
+  constructor(w, h, drawFn, owner, { frosted = false } = {}) {
     this.w = w; this.h = h; this.drawFn = drawFn; this.owner = owner;
     this.canvas = document.createElement('canvas');
     this.canvas.width = Math.round(w * RES);
@@ -118,7 +129,8 @@ export class Surface {
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.anisotropy = 8;
     this.tex.minFilter = THREE.LinearMipmapLinearFilter;
-    this.mat = new THREE.MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false, side: THREE.FrontSide });
+    this.mat = frosted ? frostedMaterial(this.tex)
+      : new THREE.MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false, side: THREE.FrontSide });
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(w / PX_PER_M, h / PX_PER_M), this.mat);
     this.mesh.userData.surface = this;
     this.elements = [];
@@ -145,6 +157,31 @@ export class Surface {
   dispose() { this.tex.dispose(); this.mat.dispose(); this.mesh.geometry.dispose(); }
 }
 
+// Canvas UI composited over the blurred backdrop: inside the glass shape the backdrop shows
+// through (slightly milky), and buttons / text from the canvas sit on top.
+function frostedMaterial(tex) {
+  return new THREE.ShaderMaterial({
+    uniforms: { map: { value: tex }, opacity: { value: 1 }, enabled: frost.enabled, backdrop: frost.backdrop, viewRect: frost.viewRect },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D map, backdrop; uniform vec4 viewRect; uniform float opacity, enabled; varying vec2 vUv;
+      void main(){
+        vec4 t = texture2D(map, vUv);
+        if (t.a < 0.003) discard;
+        vec3 col = t.rgb; float a = t.a;
+        if (enabled > 0.5) {
+          vec2 suv = clamp((gl_FragCoord.xy - viewRect.xy) / viewRect.zw, 0.0, 1.0);
+          vec3 b = texture2D(backdrop, suv).rgb;
+          vec3 frosted = mix(b * 0.9, vec3(0.94, 0.95, 1.0), 0.10);
+          col = mix(frosted, t.rgb, t.a);
+          a = smoothstep(0.0, 0.06, t.a);
+        }
+        gl_FragColor = vec4(col, a * opacity);
+      }`,
+    transparent: true, depthWrite: false,
+  });
+}
+
 let nextPanelId = 1;
 
 // A window: glass body + the close button / grab bar below it.
@@ -154,7 +191,7 @@ export class Panel {
     this.app = app;
     this.sys = sys;
     this.group = new THREE.Group();
-    this.body = new Surface(app.w, app.h, (ctx, ui) => app.draw(ctx, ui, this), this);
+    this.body = new Surface(app.w, app.h, (ctx, ui) => app.draw(ctx, ui, this), this, { frosted: true });
     this.group.add(this.body.mesh);
     this.surfaces = [this.body];
     this.bar = new Surface(300, 64, (ctx, ui) => this.drawBar(ctx, ui), this);
@@ -182,7 +219,9 @@ export class Panel {
   }
   setOpacity(o) {
     this.opacity = o;
-    for (const s of this.surfaces) s.mat.opacity = o;
+    for (const s of this.surfaces) {
+      if (s.mat.uniforms) s.mat.uniforms.opacity.value = o; else s.mat.opacity = o;
+    }
     if (this.extraMats) for (const m of this.extraMats) m.opacity = o;
   }
   dispose() { for (const s of this.surfaces) s.dispose(); }

@@ -1,7 +1,7 @@
 // Built-in spatial apps. Each factory returns { w, h, draw(ctx, ui, panel), tick?, onOpen?, onClose?, dist? }.
 import * as THREE from 'three';
-import { drawGlass, text, rr, PX_PER_M } from './ui.js?v=14';
-import { ENVIRONMENTS } from './env.js?v=14';
+import { drawGlass, text, rr, PX_PER_M } from './ui.js?v=18';
+import { ENVIRONMENTS } from './env.js?v=18';
 
 const MUTED = 'rgba(255,255,255,0.62)';
 const pad2 = n => String(n).padStart(2, '0');
@@ -466,7 +466,7 @@ export function createApps(sys) {
     },
 
     settings: () => ({
-      w: 1240, h: 600, dist: 2.0,
+      w: 1240, h: 664, dist: 2.0,
       draw(ctx, ui) {
         drawGlass(ctx, this.w, this.h);
         header(ctx, 'Settings');
@@ -480,6 +480,7 @@ export function createApps(sys) {
         row(0, (x, y) => ui.stepper('fov', x, y, W, 'Field of view', `${s.fov}°`, () => set('fov', clamp(s.fov - 5, 50, 120)), () => set('fov', clamp(s.fov + 5, 50, 120))));
         row(0, (x, y) => ui.stepper('dist', x, y, W, 'Lens distortion', s.distortion.toFixed(2), () => set('distortion', clamp(round(s.distortion - 0.04, 0.01), 0, 0.8)), () => set('distortion', clamp(round(s.distortion + 0.04, 0.01), 0, 0.8))));
         row(0, (x, y) => ui.stepper('lens', x, y, W, 'Lens centre offset', s.lensOffset.toFixed(2), () => set('lensOffset', clamp(round(s.lensOffset - 0.01, 0.01), -0.15, 0.15)), () => set('lensOffset', clamp(round(s.lensOffset + 0.01, 0.01), -0.15, 0.15))));
+        row(0, (x, y) => ui.toggle('frost', x, y, W, 'Frosted glass windows', s.frost !== false, () => set('frost', s.frost === false)));
         row(0, (x, y) => ui.stepper('zoom', x, y, W, 'Passthrough zoom', `${s.ptZoom.toFixed(2)}×`, () => set('ptZoom', clamp(round(s.ptZoom - 0.05, 0.05), 0.4, 2.5)), () => set('ptZoom', clamp(round(s.ptZoom + 0.05, 0.05), 0.4, 2.5))));
         row(1, (x, y) => ui.stepper('sync', x, y, W, 'Passthrough sync', `${s.ptSync} ms`, () => set('ptSync', clamp(s.ptSync - 10, -60, 250)), () => set('ptSync', clamp(s.ptSync + 10, -60, 250))));
         row(1, (x, y) => ui.stepper('wdist', x, y, W, 'Window distance', `${s.panelDist.toFixed(1)} m`, () => set('panelDist', clamp(round(s.panelDist - 0.1, 0.1), 0.8, 4)), () => set('panelDist', clamp(round(s.panelDist + 0.1, 0.1), 0.8, 4))));

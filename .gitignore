@@ -1,5 +1,6 @@
 # Private: server details, local machine paths, signing keys
 lumen/deploy.sh
+publish.sh
 local.properties
 keystore.properties
 *.jks

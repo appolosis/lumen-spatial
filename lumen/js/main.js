@@ -1,12 +1,12 @@
 // Lumen Spatial: phone-in-headset spatial computer.
 import * as THREE from 'three';
-import { Panel, Surface, PX_PER_M, text, rr } from './ui.js?v=14';
-import { createApps } from './apps.js?v=14';
-import { createSky } from './env.js?v=14';
-import { createHands } from './hands.js?v=14';
-import { createJellyfin } from './jellyfin.js?v=14';
-import { LiveVideo, updateAllVideos, createProbe, setVideoMode, videoMode } from './livevideo.js?v=14';
-import { createPhone } from './phone.js?v=14';
+import { Panel, Surface, PX_PER_M, text, rr, frost, setGlassTint } from './ui.js?v=18';
+import { createApps } from './apps.js?v=18';
+import { createSky } from './env.js?v=18';
+import { createHands } from './hands.js?v=18';
+import { createJellyfin } from './jellyfin.js?v=18';
+import { LiveVideo, updateAllVideos, createProbe, setVideoMode, videoMode } from './livevideo.js?v=18';
+import { createPhone } from './phone.js?v=18';
 
 THREE.ColorManagement.enabled = false;
 const $ = s => document.querySelector(s);
@@ -14,7 +14,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 // ---------- settings ----------
-const DEFAULTS = { ipd: 63, fov: 90, distortion: 0.22, lensOffset: 0, ptZoom: 1.0, ptSync: 0, panelDist: 1.6, dwellOn: true, dwell: 1.0, tracking: 'sensor', hands: true };
+const DEFAULTS = { ipd: 63, fov: 90, distortion: 0.22, lensOffset: 0, ptZoom: 1.0, ptSync: 0, panelDist: 1.6, dwellOn: true, dwell: 1.0, tracking: 'sensor', hands: true, frost: true };
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
@@ -395,7 +395,12 @@ const sys = {
   get movie() { return movie; },
   get stereo() { return stereo; },
   battery: null,
-  saveSettings(key) { store.set('lumen.settings', settings); refreshAll(); if (key === 'hands') syncHands(); },
+  saveSettings(key) {
+    store.set('lumen.settings', settings);
+    if (key === 'frost') setGlassTint(settings.frost ? 0.38 : 0.70);
+    refreshAll();
+    if (key === 'hands') syncHands();
+  },
   // Swap what the Cinema plays. Closing the old Cinema window stops the old video.
   playMovie(m) {
     const old = panels.find(p => p.app.id === 'cinema' && !p.closing);
@@ -782,8 +787,65 @@ addEventListener('resize', resize);
 // ---------- frame ----------
 let lastT = performance.now(), enterT = 0, initialDone = false;
 
-function drawView(cam, aspect) {
+// ---------- frosted glass ----------
+// Per view: draw just the background (camera + environment) at quarter size, blur it, and let
+// the windows sample it behind themselves. Windows and other UI are left out of the backdrop.
+const BACKDROP_LAYER = 1;
+sky.mesh.layers.enable(BACKDROP_LAYER);
+setGlassTint(settings.frost ? 0.38 : 0.70);
+const blurU = { tDiffuse: { value: null }, step: { value: new THREE.Vector2() } };
+const blurScene = new THREE.Scene();
+const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms: blurU, vertexShader: quadVert, depthTest: false, depthWrite: false,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 step; varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb * 0.2270;
+      c += (texture2D(tDiffuse, vUv + step * 1.3846).rgb + texture2D(tDiffuse, vUv - step * 1.3846).rgb) * 0.3162;
+      c += (texture2D(tDiffuse, vUv + step * 3.2308).rgb + texture2D(tDiffuse, vUv - step * 3.2308).rgb) * 0.0703;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+}));
+blurQuad.frustumCulled = false;
+blurScene.add(blurQuad);
+let blurRT = [];
+function blurTargets(w, h) {
+  if (!blurRT.length || blurRT[0].width !== w || blurRT[0].height !== h) {
+    blurRT.forEach(t => t.dispose());
+    blurRT = [0, 1].map(() => new THREE.WebGLRenderTarget(w, h, { depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }));
+  }
+  return blurRT;
+}
+// target: render target being drawn, or null for the screen; vp: [x, y, w, h] in CSS px on screen
+function prepareBackdrop(cam, target, vp) {
+  const on = settings.frost && panels.length > 0;
+  frost.enabled.value = on ? 1 : 0;
+  if (!on) return;
+  const fw = target ? target.width : vp[2] * PR, fh = target ? target.height : vp[3] * PR;
+  frost.viewRect.value.set(target ? 0 : vp[0] * PR, target ? 0 : vp[1] * PR, fw, fh);
+  const [a, b] = blurTargets(Math.max(16, Math.round(fw / 4)), Math.max(16, Math.round(fh / 4)));
+  const scissor = renderer.getScissorTest();
+  renderer.setRenderTarget(a);
+  renderer.clear();
+  renderer.render(bgScene, quadCam);
+  cam.layers.set(BACKDROP_LAYER);
+  renderer.render(scene, cam);
+  cam.layers.set(0);
+  for (const r of [1.5, 3, 4.5]) {     // three rounds of separable blur, each wider: a soft, heavy frost
+    blurU.tDiffuse.value = a.texture; blurU.step.value.set(r / a.width, 0);
+    renderer.setRenderTarget(b); renderer.render(blurScene, quadCam);
+    blurU.tDiffuse.value = b.texture; blurU.step.value.set(0, r / a.height);
+    renderer.setRenderTarget(a); renderer.render(blurScene, quadCam);
+  }
+  frost.backdrop.value = a.texture;
+  renderer.setRenderTarget(target);
+  if (!target) { renderer.setViewport(...vp); renderer.setScissor(...vp); }
+  renderer.setScissorTest(scissor);
+}
+
+function drawView(cam, aspect, target = null, vp = [0, 0, W, H]) {
   updateBg(aspect, cam.fov);
+  prepareBackdrop(cam, target, vp);
   renderer.render(bgScene, quadCam);
   renderer.render(scene, cam);
 }
@@ -864,7 +926,7 @@ function frame() {
     for (let i = 0; i < 2; i++) {
       renderer.setRenderTarget(eyeRT[i]);
       renderer.clear();
-      drawView(eyes[i], eyeAspect);
+      drawView(eyes[i], eyeAspect, eyeRT[i]);
     }
     renderer.setRenderTarget(null);
     const k1 = settings.distortion, k2 = settings.distortion * 0.35;
@@ -880,7 +942,7 @@ function frame() {
     for (let i = 0; i < 2; i++) {
       renderer.setViewport(i * W / 2, 0, W / 2, H);
       renderer.setScissor(i * W / 2, 0, W / 2, H);
-      drawView(eyes[i], eyeAspect);
+      drawView(eyes[i], eyeAspect, null, [i * W / 2, 0, W / 2, H]);
     }
     renderer.setScissorTest(false);
   }
@@ -1048,7 +1110,7 @@ if (!window.isSecureContext) setStatus('This page is not on HTTPS, so the camera
 resize();
 
 if ('serviceWorker' in navigator && window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-  navigator.serviceWorker.register('sw.js?v=14').catch(() => {});
+  navigator.serviceWorker.register('sw.js?v=18').catch(() => {});
 }
 
 // debug hook for testing

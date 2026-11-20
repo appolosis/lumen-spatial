@@ -23,7 +23,7 @@ export function createHands({ video, onPinchStart, onPinchEnd, onStatus }) {
   function start() {
     enabled = true;
     if (worker) return;
-    worker = new Worker('js/hands-worker.js?v=14');
+    worker = new Worker('js/hands-worker.js?v=18');
     worker.onmessage = e => {
       const m = e.data;
       if (m.type === 'ready') { ready = true; onStatus?.(`Hand tracking on (${m.delegate})`); }
